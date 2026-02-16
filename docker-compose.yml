@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     ports:
       - "5432:5432"
     environment:
@@ -17,7 +17,7 @@ services:
           memory: 512M
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:4-management
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -34,13 +34,10 @@ services:
     command: npm run start:mock
     ports:
       - "8080:8080"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
     networks:
       - app-network
     depends_on:
-      - backend # Wait for backend build to ensure image exists if sharing (though compose builds independently)
+      - backend
 
   backend:
     build:
@@ -57,9 +54,6 @@ services:
       RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
       RABBITMQ_QUEUE: items_queue
       EXTERNAL_API_URL: http://mock-server:8080
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
     depends_on:
       - postgres
       - rabbitmq
@@ -72,15 +66,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3005:3005"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
-      # Next.js development server port
       PORT: 3005
-      # Assuming frontend might need to talk to backend from server-side
-      # Note: Client-side requests will go to localhost:3000 (browser -> host)
-      # Server-side requests would need http://backend:3000
     networks:
       - app-network
 

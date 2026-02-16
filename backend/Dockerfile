@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -8,4 +8,15 @@ RUN npm install
 
 COPY . .
 
-CMD ["npm", "run", "start:dev"]
+RUN npm run build
+
+FROM node:24-alpine
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/mock-server.js ./
+
+CMD ["npm", "run", "start:prod"]
