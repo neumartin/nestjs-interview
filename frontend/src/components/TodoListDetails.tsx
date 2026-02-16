@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { TodoList, TodoItem as TodoItemType, CreateItemDto } from '@/types';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { io } from 'socket.io-client';
+import { Virtuoso } from 'react-virtuoso';
 
 interface TodoListDetailsProps {
     listId: number;
@@ -107,6 +109,34 @@ export default function TodoListDetails({ listId }: TodoListDetailsProps) {
         });
     };
 
+    // Real-time updates
+    useEffect(() => {
+        const socket = io('http://localhost:3000');
+
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket');
+            socket.emit('joinList', listId);
+        });
+
+        socket.on('itemUpdated', (updatedItem: TodoItemType) => {
+            queryClient.setQueryData<TodoItemType[]>(['todolist', listId, 'items'], (oldItems) => {
+                if (!oldItems) return [updatedItem];
+
+                const exists = oldItems.find(i => i.id === updatedItem.id);
+                if (exists) {
+                    return oldItems.map(item => item.id === updatedItem.id ? updatedItem : item);
+                } else {
+                    return [...oldItems, updatedItem];
+                }
+            });
+        });
+
+        return () => {
+            socket.emit('leaveList', listId);
+            socket.disconnect();
+        };
+    }, [listId, queryClient]);
+
     if (listLoading || itemsLoading) {
         return (
             <div className="flex justify-center items-center py-20">
@@ -118,22 +148,22 @@ export default function TodoListDetails({ listId }: TodoListDetailsProps) {
     if (!list) return <div className="text-center p-8">List not found</div>;
 
     return (
-        <div className="container mx-auto p-4 max-w-3xl">
+        <div className="container mx-auto p-4 max-w-3xl h-screen flex flex-col">
             <Link href="/">
                 <Button variant="ghost" className="mb-6 -ml-4 text-gray-500 hover:text-gray-900">
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
                 </Button>
             </Link>
 
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                <div className="mb-8 p-4 border-b border-gray-100">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 flex-1 flex flex-col min-h-0">
+                <div className="mb-8 p-4 border-b border-gray-100 flex-shrink-0">
                     <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
                         {list.name}
                     </h1>
                     <p className="text-sm text-gray-500 mt-1">{items?.length || 0} tasks</p>
                 </div>
 
-                <form onSubmit={handleAddItem} className="flex gap-2 mb-8">
+                <form onSubmit={handleAddItem} className="flex gap-2 mb-8 flex-shrink-0">
                     <Input
                         placeholder="Add a new task..."
                         value={newItemDescription}
@@ -145,17 +175,23 @@ export default function TodoListDetails({ listId }: TodoListDetailsProps) {
                     </Button>
                 </form>
 
-                <div className="space-y-3">
-                    {items?.map((item) => (
-                        <TodoItem
-                            key={item.id}
-                            item={item}
-                            onToggle={() => toggleItemMutation.mutate(item)}
-                            onDelete={(id) => deleteItemMutation.mutate(id)}
-                            onUpdate={(id, description) => updateItemMutation.mutate({ item, description })}
+                <div className="flex-1 min-h-0">
+                    {items && items.length > 0 ? (
+                        <Virtuoso
+                            data={items}
+                            totalCount={items.length}
+                            itemContent={(index: number, item: TodoItemType) => (
+                                <div className="pb-3">
+                                    <TodoItem
+                                        item={item}
+                                        onToggle={() => toggleItemMutation.mutate(item)}
+                                        onDelete={(id) => deleteItemMutation.mutate(id)}
+                                        onUpdate={(id, description) => updateItemMutation.mutate({ item, description })}
+                                    />
+                                </div>
+                            )}
                         />
-                    ))}
-                    {items?.length === 0 && (
+                    ) : (
                         <div className="text-center py-10 text-gray-400 italic">
                             No tasks yet. Add one above!
                         </div>

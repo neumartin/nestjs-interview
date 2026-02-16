@@ -8,6 +8,7 @@ import { TodoList } from './todo_list.entity';
 import { Item } from './item.entity';
 import { CreateItemDto } from './dtos/createItem';
 import { UpdateItemDto } from './dtos/updateItem';
+import { TodoListsGateway } from './todo_lists.gateway';
 
 @Injectable()
 export class TodoListsService {
@@ -17,6 +18,7 @@ export class TodoListsService {
     @InjectRepository(Item)
     private readonly itemRepository: Repository<Item>,
     @Inject('TODO_SERVICE_RMQ') private readonly client: ClientProxy,
+    private readonly todoListsGateway: TodoListsGateway,
   ) { }
 
   async all(): Promise<TodoList[]> {
@@ -46,6 +48,10 @@ export class TodoListsService {
     await this.todoListRepository.delete(id);
   }
 
+  notifyItemUpdated(item: Item) {
+    this.todoListsGateway.notifyItemUpdated(item.todoListId, item);
+  }
+
   // ======= ITEMS ========
 
   async geItems(listId: number): Promise<Item[]> {
@@ -64,7 +70,9 @@ export class TodoListsService {
     }
 
     const item = this.itemRepository.create({ ...itemDto });
-    return await this.itemRepository.save(item);
+    const savedItem = await this.itemRepository.save(item);
+    this.notifyItemUpdated(savedItem);
+    return savedItem;
   }
 
   async updateItem(id: number, dto: UpdateItemDto): Promise<Item> {
@@ -90,7 +98,8 @@ export class TodoListsService {
       return;
     }
 
-    await this.itemRepository.save({ id, ...dto } as Item);
+    const updatedItem = await this.itemRepository.save({ id, ...dto } as Item);
+    this.todoListsGateway.notifyItemUpdated(updatedItem.todoListId, updatedItem);
   }
 
   async deleteItem(id: number): Promise<void> {

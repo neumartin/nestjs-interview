@@ -6,6 +6,7 @@ import { TodoList } from './todo_list.entity';
 import { Item } from './item.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TodoListsGateway } from './todo_lists.gateway';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     ]),
   ],
   controllers: [TodoListsController],
-  providers: [TodoListsService],
+  providers: [TodoListsService, TodoListsGateway],
   exports: [TodoListsService],
 })
 export class TodoListsModule { }
