@@ -1,0 +1,63 @@
+
+# Implementation Notes - Synchronization Feature
+
+## High-Level Overview
+This solution implements bidirectional synchronization between the local Todo API and an External API. The synchronization is achieved through two main mechanisms:
+1.  **Periodic Polling (External -> Local):** A scheduled task runs every 10 seconds to fetch data from the External API and update the local database. This handles creation, updates, and deletions initiated externally. (Deletion is implicit: if local item has externalId but is missing from external, it is deleted locally).
+2.  **Event-Driven Push (Local -> External):** CRUD operations on the local API trigger immediate API calls to the External API to propagate changes.
+
+## Key Design Decisions
+-   **Data Model Modification:** Added `externalId` column to both `TodoList` and `Item` entities to map local records to external ones. This allows tracking the identity across systems.
+-   **Service Architecture:** Created a dedicated `SyncService` module to encapsulate synchronization logic. This service communicates with the External API and updates the local database directly via repositories to avoid recursive loops (e.g., calling `SyncService` -> `TodoListsService` -> `SyncService`).
+-   **Push on Change:** Instead of queuing changes, local modifications attempt to push to the External API immediately. Errors are logged but do not block the local operation (fire-and-forget for user responsiveness, but with logging). This is a trade-off for simplicity over guaranteed delivery (which would require a persistent queue like RabbitMQ or a DB table for pending changes).
+-   **Conflict Resolution:** The current strategy is "Last Write Wins" with a bias towards the External API during polling. If data differs during a pull, the local data is overwritten.
+-   **Circular Dependency Handling:** Used `forwardRef` to manage the dependency between `TodoListsModule` (which needs `SyncService` for push) and `SyncModule` (which needs `TodoListsGateway` for real-time frontend updates).
+
+## Assumptions
+-   **External API URL:** Assumed `http://localhost:8080`. This is configurable via `EXTERNAL_API_URL` in `.env`.
+-   **API Endpoints:** Inferred endpoints based on standard REST conventions and the provided README summary:
+    -   `GET /todolists`: Returns lists with items.
+    -   `POST /todolists`: Creates a list.
+    -   `PATCH /todolists/{id}`: Updates a list.
+    -   `DELETE /todolists/{id}`: Deletes a list.
+    -   `POST /todolists/{listId}/todoitems`: Creates an item (Inferred).
+    -   `PATCH /todolists/{listId}/todoitems/{itemId}`: Updates an item.
+    -   `DELETE /todolists/{listId}/todoitems/{itemId}`: Deletes an item.
+-   **Data Mapping:** Assumed external item fields match local ones (description, done/isFinished).
+
+## Resilience and Error Handling
+-   **Try-Catch Blocks:** All external API calls are wrapped in try-catch blocks to prevent synchronization failures from crashing the application.
+-   **Logging:** Errors are logged using NestJS Logger for debugging.
+-   **Graceful Degradation:** If the External API is down, local operations proceed, and synchronization will retry (for Pull) or be skipped (for Push) until the next success. (Note: Failed Pushes are not retried automatically in this version, relying on subsequent Pull or manual retry logic if extended).
+
+## Edge Cases
+-   **Zombies:** If a local deletion fails to propagate to the external API, the next Pull cycle might recreate the item locally (since it still exists externally).
+-   **Data Races:** Concurrent updates might lead to temporary inconsistencies, resolved by the next Pull cycle.
+
+## Areas for Improvement
+-   **Reliable Queueing:** Use RabbitMQ (already present in the project) to queue synchronization tasks. This would ensure that failed Pushes are retried significantly improving reliability.
+-   **Webhooks:** If the External API supports webhooks, replacing Polling with Webhooks would differ latency and reduce unnecessary API calls.
+-   **Bulk Operations:** Implementing bulk sync endpoint would reduce network overhead.
+-   **Conflict Resolution:** Implementing version checks (ETags) or timestamps to handle conflicts more intelligently.
+
+## How to Run
+1.  **Configure Environment:** Ensure `.env` has `EXTERNAL_API_URL=http://localhost:8080` (or the correct URL).
+2.  **Run Backend:** `pnpm start:dev` inside `backend` folder.
+4.  **Run External API Mock:**
+    Since the external API code was not provided, I created a mock server script.
+    Run in a separate terminal inside `backend`:
+    ```bash
+    pnpm start:mock
+    ```
+    This starts a mock API at `http://localhost:8080` with initial data (one list "External Board").
+
+5.  **Run Frontend (Optional):**
+    If you want to view the UI, run the frontend in `frontend` folder:
+    ```bash
+    npm run dev
+    ```
+
+6.  **Verify:**
+    -   Check backend logs for "[SyncService] Created local list from external: External Board".
+    -   Check database or frontend to see the synced list.
+    -   Create/Update/Delete items in Frontend or via API (http://localhost:3000) and verify they are pushed to the mock server (check mock server console logs).

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { CreateTodoListDto } from './dtos/create-todo_list';
 import { UpdateTodoListDto } from './dtos/update-todo_list';
@@ -9,6 +9,7 @@ import { Item } from './item.entity';
 import { CreateItemDto } from './dtos/createItem';
 import { UpdateItemDto } from './dtos/updateItem';
 import { TodoListsGateway } from './todo_lists.gateway';
+import { SyncService } from '../sync/sync.service';
 
 @Injectable()
 export class TodoListsService {
@@ -19,6 +20,8 @@ export class TodoListsService {
     private readonly itemRepository: Repository<Item>,
     @Inject('TODO_SERVICE_RMQ') private readonly client: ClientProxy,
     private readonly todoListsGateway: TodoListsGateway,
+    @Inject(forwardRef(() => SyncService))
+    private readonly syncService: SyncService,
   ) { }
 
   async all(): Promise<TodoList[]> {
@@ -35,7 +38,9 @@ export class TodoListsService {
 
   async create(dto: CreateTodoListDto): Promise<TodoList> {
     const todoList = this.todoListRepository.create({ name: dto.name });
-    return await this.todoListRepository.save(todoList);
+    const savedList = await this.todoListRepository.save(todoList);
+    this.syncService.createExternalList(savedList);
+    return savedList;
   }
 
   async update(id: number, dto: UpdateTodoListDto): Promise<TodoList> {
@@ -45,11 +50,17 @@ export class TodoListsService {
       throw new NotFoundException(`Todo list with id ${id} not found`);
     }
 
-    return await this.todoListRepository.save({ id, ...dto } as TodoList);
+    const saved = await this.todoListRepository.save({ id, ...dto } as TodoList);
+    this.syncService.updateExternalList(saved);
+    return saved;
   }
 
   async delete(id: number): Promise<void> {
+    const list = await this.todoListRepository.findOneBy({ id });
     await this.todoListRepository.delete(id);
+    if (list) {
+      this.syncService.deleteExternalList(list);
+    }
   }
 
   notifyItemUpdated(item: Item) {
@@ -81,6 +92,7 @@ export class TodoListsService {
     const item = this.itemRepository.create({ ...itemDto });
     const savedItem = await this.itemRepository.save(item);
     this.notifyItemUpdated(savedItem);
+    this.syncService.createExternalItem(savedItem);
     return savedItem;
   }
 
@@ -109,9 +121,14 @@ export class TodoListsService {
 
     const updatedItem = await this.itemRepository.save({ id, ...dto } as Item);
     this.todoListsGateway.notifyItemUpdated(updatedItem.todoListId, updatedItem);
+    this.syncService.updateExternalItem(updatedItem);
   }
 
   async deleteItem(id: number): Promise<void> {
+    const item = await this.itemRepository.findOneBy({ id });
     await this.itemRepository.delete(id);
+    if (item) {
+      this.syncService.deleteExternalItem(item);
+    }
   }
 }

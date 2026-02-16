@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TodoListsController } from './todo_lists.controller';
 import { TodoListsService } from './todo_lists.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -7,6 +7,7 @@ import { Item } from './item.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TodoListsGateway } from './todo_lists.gateway';
+import { SyncModule } from '../sync/sync.module';
 
 @Module({
   imports: [
@@ -30,9 +31,10 @@ import { TodoListsGateway } from './todo_lists.gateway';
         inject: [ConfigService],
       },
     ]),
+    forwardRef(() => SyncModule),
   ],
   controllers: [TodoListsController],
   providers: [TodoListsService, TodoListsGateway],
-  exports: [TodoListsService],
+  exports: [TodoListsService, TodoListsGateway],
 })
 export class TodoListsModule { }

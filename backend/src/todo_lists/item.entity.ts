@@ -12,6 +12,9 @@ export class Item {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ nullable: true })
+  externalId: string;
+
   @Column()
   done: boolean;
 

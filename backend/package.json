@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "start:mock": "node mock-server.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.13",
@@ -26,10 +27,12 @@
     "@nestjs/microservices": "^11.1.13",
     "@nestjs/platform-express": "^11.1.13",
     "@nestjs/platform-socket.io": "^11.1.13",
+    "@nestjs/schedule": "^6.1.1",
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.1.13",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^0.10.9",
+    "axios": "^1.13.5",
     "dotenv": "^17.2.4",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
