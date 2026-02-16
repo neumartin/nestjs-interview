@@ -4,15 +4,25 @@ import { TodoListsService } from './todo_lists.service';
 import { INestApplication } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { TodoList } from './todo_list.entity';
+import { Item } from './item.entity';
 
 describe('TodoListsController', () => {
   let app: INestApplication;
   let todoListsController: TodoListsController;
   let todoListRepositoryMock: jest.Mocked<Record<string, jest.Mock>>;
+  let itemRepositoryMock: jest.Mocked<Record<string, jest.Mock>>;
 
   beforeEach(async () => {
     todoListRepositoryMock = {
       find: jest.fn(),
+      findOneBy: jest.fn(),
+      save: jest.fn(),
+      delete: jest.fn(),
+      create: jest.fn(),
+    };
+
+    itemRepositoryMock = {
+      findBy: jest.fn(),
       findOneBy: jest.fn(),
       save: jest.fn(),
       delete: jest.fn(),
@@ -26,6 +36,10 @@ describe('TodoListsController', () => {
         {
           provide: getRepositoryToken(TodoList),
           useValue: todoListRepositoryMock,
+        },
+        {
+          provide: getRepositoryToken(Item),
+          useValue: itemRepositoryMock,
         },
       ],
     }).compile();
@@ -101,6 +115,85 @@ describe('TodoListsController', () => {
       todoListRepositoryMock.delete.mockResolvedValue({ affected: 1 });
       await todoListsController.delete({ todoListId: 1 });
       expect(todoListRepositoryMock.delete).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('Items', () => {
+    describe('showItems', () => {
+      it('should return items for a todo list', async () => {
+        const mockItems = [
+          { id: 1, description: 'Buy milk', done: false, todoListId: 1 },
+        ];
+        itemRepositoryMock.findBy.mockResolvedValue(mockItems);
+
+        const result = await todoListsController.showItems({ todoListId: 1 });
+
+        expect(result).toEqual(mockItems);
+        expect(itemRepositoryMock.findBy).toHaveBeenCalledWith({
+          todoListId: 1,
+        });
+      });
+    });
+
+    describe('createItem', () => {
+      it('should create a new item', async () => {
+        const createItemDto = {
+          description: 'Buy milk',
+          todoListId: 1,
+          done: false,
+        };
+        const mockTodoList = { id: 1, name: 'Shopping List' };
+        const mockCreatedItem = { id: 1, ...createItemDto };
+
+        todoListRepositoryMock.findOneBy.mockResolvedValue(mockTodoList);
+        itemRepositoryMock.create.mockReturnValue(mockCreatedItem);
+        itemRepositoryMock.save.mockResolvedValue(mockCreatedItem);
+
+        const result = await todoListsController.createItem(createItemDto);
+
+        expect(result).toEqual(mockCreatedItem);
+        expect(todoListRepositoryMock.findOneBy).toHaveBeenCalledWith({ id: 1 });
+        expect(itemRepositoryMock.create).toHaveBeenCalledWith(createItemDto);
+        expect(itemRepositoryMock.save).toHaveBeenCalledWith(mockCreatedItem);
+      });
+    });
+
+    describe('updateItem', () => {
+      it('should update an existing item', async () => {
+        const updateItemDto = { description: 'Buy bread', done: true, todoListId: 1 };
+        const existingItem = {
+          id: 1,
+          description: 'Buy milk',
+          done: false,
+          todoListId: 1,
+        };
+        const updatedItem = { id: 1, ...updateItemDto, todoListId: 1 };
+
+        itemRepositoryMock.findOneBy.mockResolvedValue(existingItem);
+        itemRepositoryMock.save.mockResolvedValue(updatedItem);
+
+        const result = await todoListsController.updateItem(
+          { itemId: '1' },
+          updateItemDto,
+        );
+
+        expect(result).toEqual(updatedItem);
+        expect(itemRepositoryMock.findOneBy).toHaveBeenCalledWith({ id: 1 });
+        expect(itemRepositoryMock.save).toHaveBeenCalledWith({
+          id: 1,
+          ...updateItemDto,
+        });
+      });
+    });
+
+    describe('deleteItem', () => {
+      it('should delete an item', async () => {
+        itemRepositoryMock.delete.mockResolvedValue({ affected: 1 });
+
+        await todoListsController.deleteItem({ itemId: 1 });
+
+        expect(itemRepositoryMock.delete).toHaveBeenCalledWith(1);
+      });
     });
   });
 });

@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Item } from './item.entity';
 
 @Entity()
 export class TodoList {
@@ -7,4 +8,7 @@ export class TodoList {
 
   @Column()
   name: string;
+
+  @OneToMany((type) => Item, (item) => item.todoList)
+  items: Item[];
 }

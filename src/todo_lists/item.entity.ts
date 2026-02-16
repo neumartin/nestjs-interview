@@ -13,6 +13,12 @@ export class Item {
   id: number;
 
   @Column()
+  done: boolean;
+
+  @Column()
+  description: string;
+
+  @Column()
   todoListId: number;
 
   @ManyToOne((type) => TodoList, (todoList) => todoList.items)

@@ -1,4 +1,4 @@
-export class CreateItemDto {
+export class UpdateItemDto {
   done: boolean;
   description: string;
   todoListId: number;
