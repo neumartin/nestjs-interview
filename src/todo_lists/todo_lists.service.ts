@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { CreateTodoListDto } from './dtos/create-todo_list';
 import { UpdateTodoListDto } from './dtos/update-todo_list';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,7 +16,8 @@ export class TodoListsService {
     private readonly todoListRepository: Repository<TodoList>,
     @InjectRepository(Item)
     private readonly itemRepository: Repository<Item>,
-  ) {}
+    @Inject('TODO_SERVICE_RMQ') private readonly client: ClientProxy,
+  ) { }
 
   async all(): Promise<TodoList[]> {
     return await this.todoListRepository.find();
@@ -72,7 +74,23 @@ export class TodoListsService {
       throw new NotFoundException(`Item with id ${id} not found`);
     }
 
-    return await this.itemRepository.save({ id, ...dto } as Item);
+    this.client.emit('update_item', { id, ...dto });
+
+    // Return the current item as the update is processed asynchronously
+    return item;
+  }
+
+  async executeItemUpdate(payload: { id: number } & UpdateItemDto): Promise<void> {
+    const { id, ...dto } = payload;
+    const item = await this.itemRepository.findOneBy({ id });
+
+    if (!item) {
+      // In a real microservice, we might log this or handle it differently
+      console.error(`Item with id ${id} not found in worker`);
+      return;
+    }
+
+    await this.itemRepository.save({ id, ...dto } as Item);
   }
 
   async deleteItem(id: number): Promise<void> {

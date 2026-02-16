@@ -7,6 +7,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CreateTodoListDto } from './dtos/create-todo_list';
 import { UpdateTodoListDto } from './dtos/update-todo_list';
 import { TodoList } from '../interfaces/todo_list.interface';
@@ -17,7 +18,7 @@ import { UpdateItemDto } from './dtos/updateItem';
 
 @Controller('api/todolists')
 export class TodoListsController {
-  constructor(private todoListsService: TodoListsService) {}
+  constructor(private todoListsService: TodoListsService) { }
 
   @Get()
   index(): Promise<TodoList[]> {
@@ -68,5 +69,10 @@ export class TodoListsController {
   @Delete('/item/:itemId')
   deleteItem(@Param() param: { itemId: number }): Promise<void> {
     return this.todoListsService.deleteItem(param.itemId);
+  }
+
+  @MessagePattern('update_item')
+  async handleItemUpdate(@Payload() payload: { id: number } & UpdateItemDto) {
+    await this.todoListsService.executeItemUpdate(payload);
   }
 }

@@ -7,7 +7,7 @@ import { Item } from './todo_lists/item.entity';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({ isGlobal: true }),
     TodoListsModule,
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
@@ -26,4 +26,4 @@ import { Item } from './todo_lists/item.entity';
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule { }
