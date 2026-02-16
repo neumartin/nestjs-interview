@@ -22,7 +22,11 @@ export class TodoListsService {
   ) { }
 
   async all(): Promise<TodoList[]> {
-    return await this.todoListRepository.find();
+    return await this.todoListRepository.find({
+      order: {
+        name: 'ASC',
+      },
+    });
   }
 
   async get(id: number): Promise<TodoList | null> {
@@ -55,7 +59,12 @@ export class TodoListsService {
   // ======= ITEMS ========
 
   async geItems(listId: number): Promise<Item[]> {
-    return await this.itemRepository.findBy({ todoListId: listId });
+    return await this.itemRepository.find({
+      where: { todoListId: listId },
+      order: {
+        description: 'ASC',
+      },
+    });
   }
 
   async createItem(itemDto: CreateItemDto): Promise<Item> {

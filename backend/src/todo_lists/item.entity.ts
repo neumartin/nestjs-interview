@@ -21,7 +21,9 @@ export class Item {
   @Column()
   todoListId: number;
 
-  @ManyToOne((type) => TodoList, (todoList) => todoList.items)
+  @ManyToOne((type) => TodoList, (todoList) => todoList.items, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'todoListId' })
   todoList: TodoList;
 }
